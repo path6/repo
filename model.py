@@ -32,7 +32,7 @@ def ask_gemini(prompt):
             return result
     except Exception as e:
         # अगर Pollinations डाउन हो, तो एक और Free Backup (MLVoca - DeepSeek R1)
-        print("Pollinations API slow, switching to Backup (DeepSeek)...")
+        print("Main Factory is slow, switching to Backup...")
         backup_url = "https://mlvoca.com/api/generate"
         backup_payload = {"model": "deepseek-r1:1.5b", "prompt": prompt, "stream": False}
         backup_req = urllib.request.Request(backup_url, data=json.dumps(backup_payload).encode('utf-8'), headers={"Content-Type": "application/json"})
@@ -42,4 +42,4 @@ def ask_gemini(prompt):
         except Exception as backup_e:
             return f"❌ All Free APIs are currently busy: {str(backup_e)}"
 
-print("✅ NEW 2026 AI Loaded! (Powered by Pollinations - No API Key Needed)")
+print("✅ Power Loaded. please wait...")
