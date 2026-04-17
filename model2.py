@@ -1,4 +1,4 @@
-# ai.py
+# ai.py (FIXED)
 
 import json
 import urllib.request
@@ -11,10 +11,6 @@ def _call_model(prompt, model):
         "model": model,
         "messages": [
             {
-                "role": "system",
-                "content": "You are an expert programmer. Think step by step and give correct, optimized code."
-            },
-            {
                 "role": "user",
                 "content": prompt
             }
@@ -24,45 +20,38 @@ def _call_model(prompt, model):
     req = urllib.request.Request(
         POLLINATIONS_URL,
         data=json.dumps(data).encode("utf-8"),
-        headers={"Content-Type": "application/json"}
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0"
+        }
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=20) as res:
-            response_data = json.loads(res.read().decode("utf-8"))
-            return response_data["choices"][0]["message"]["content"]
-    except:
-        return None
+        with urllib.request.urlopen(req, timeout=60) as res:
+            raw = res.read().decode("utf-8")
+            
+            # DEBUG print (optional)
+            # print(raw)
+
+            response_data = json.loads(raw)
+
+            # safer parsing
+            if "choices" in response_data:
+                return response_data["choices"][0]["message"]["content"]
+
+            return str(response_data)
+
+    except Exception as e:
+        return f"ERROR: {str(e)}"
 
 
 def ask(prompt, model="llama"):
-    """
-    prompt: your question
-    model: 'llama', 'mistral', 'openai', 'mixtral'
-    """
+    models = [model, "llama", "mistral", "openai"]
 
-    # models priority list (user choice first)
-    models_to_try = [model]
-
-    # add smart fallbacks
-    fallback_models = ["llama", "mixtral", "mistral", "openai"]
-
-    for m in fallback_models:
-        if m not in models_to_try:
-            models_to_try.append(m)
-
-    # try all models
-    for m in models_to_try:
+    for m in models:
         result = _call_model(prompt, m)
-        if result:
+
+        if result and not result.startswith("ERROR"):
             return f"[model: {m}]\n{result}"
 
     return "Error: All models failed."
-
-
-# quick shortcuts
-def ask_llama(prompt):
-    return ask(prompt, "llama")
-
-def ask_fast(prompt):
-    return ask(prompt, "mistral")
