@@ -1,39 +1,51 @@
-# ai.py (GitHub par host karne ke liye - KEYLESS VERSION)
-import json
-import urllib.request
-import urllib.error
+from IPython.display import display, Javascript
+import json, uuid
 
-# Free, no-key endpoint for Pollinations
-POLLINATIONS_URL = "https://text.pollinations.ai/openai/v1/chat/completions"
+def ask(query, model="auto"):
+    call_id = f"call_{uuid.uuid4().hex}"
 
-def ask(prompt, model="openai"):
-    data = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2, # Low temp rakha hai taaki code accurate aaye
-        "stream": False
-    }
+    # auto model routing
+    q = query.lower()
+    if model == "auto":
+        if any(x in q for x in ["code", "python", "bug", "error", "function", "algorithm"]):
+            model = "qwen/qwen3-coder-plus"
+        elif any(x in q for x in ["why", "analysis", "explain", "logic"]):
+            model = "gpt-5.5-pro"
+        else:
+            model = "gpt-5.5"
 
-    req = urllib.request.Request(
-        POLLINATIONS_URL,
-        data=json.dumps(data).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "JupyterNotebook-FreeClient"
-        }
-    )
+    js = f"""
+    (async () => {{
+        const load = () => new Promise((res, rej) => {{
+            if (window.puter && puter.ai) return res();
+            const s = document.createElement('script');
+            s.src = 'https://js.puter.com/v2/';
+            s.onload = res;
+            s.onerror = rej;
+            document.head.appendChild(s);
+        }});
 
-    try:
-        # Free models ke liye 60 seconds ka timeout kaafi hai
-        with urllib.request.urlopen(req, timeout=60) as res:
-            raw = res.read().decode("utf-8")
-            response_data = json.loads(raw)
-            
-            if "choices" in response_data and len(response_data["choices"]) > 0:
-                return f"\n=== [Model: {model}] ===\n" + response_data["choices"][0]["message"]["content"]
-            return "Error: Unexpected response format."
+        await load();
 
-    except urllib.error.HTTPError as e:
-        return f"HTTP Error {e.code}: {e.reason} - Sayad model ka naam galat hai ya limit cross ho gayi."
-    except Exception as e:
-        return f"Connection Error: {str(e)}"
+        const response = await puter.ai.chat({json.dumps(query)}, {{
+            model: {json.dumps(model)}
+        }});
+
+        const text = response?.message?.content || String(response);
+
+        window._ai_result_{call_id} = text;
+    }})();
+    """
+
+    display(Javascript(js))
+
+    # wait loop (simple polling)
+    import time
+    for _ in range(100):  # ~10 sec max
+        if f"_ai_result_{call_id}" in globals():
+            result = globals()[f"_ai_result_{call_id}"]
+            del globals()[f"_ai_result_{call_id}"]
+            return result
+        time.sleep(0.1)
+
+    return "Error: Timeout (no response)"
