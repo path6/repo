@@ -1,39 +1,51 @@
 # GitHub: model.py
 import requests
+import uuid
 import json
 
 def ask_gemini(prompt):
-    # 2026 Updated Endpoint
-    url = "https://www.blackbox.ai/api/chat"
+    # 2026-Verified Public Space for DeepSeek-R1 (Distilled 32B)
+    # Ye Space Reasoning aur Coding dono ke liye best hai
+    url = "https://m-a-p-deepseek-r1-distill-qwen-32b.hf.space/gradio_api/call/predict"
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "*/*",
-        "Content-Type": "application/json",
-        "Origin": "https://www.blackbox.ai",
-        "Referer": "https://www.blackbox.ai/"
-    }
-
+    # Gradio requires a unique session hash
+    session_hash = str(uuid.uuid4())[:11]
+    
+    # Payload as per 2026 Gradio API standards
     payload = {
-        "messages": [{"role": "user", "content": prompt}],
-        "model": "deepseek-r1", # 2026 logic model
-        "max_tokens": 1024,
-        "codeModelMode": True,  # Coding ke liye isse output better aata hai
-        "agentMode": {},
-        "trendingAgentMode": {},
-        "isFinalRefresh": True
+        "data": [prompt, [], ""], # [message, history, system_prompt]
+        "event_data": None,
+        "fn_index": 0,
+        "session_hash": session_hash
     }
 
     try:
-        r = requests.post(url, json=payload, headers=headers, timeout=30)
-        
-        if r.status_code == 200:
-            # 2026 mein Blackbox kabhi kabhi extra text bhejta hai, hum saaf karenge
-            response_text = r.text
-            # Agar output mein markdown blocks hain toh unhe clean karne ka logic yahan daal sakte ho
-            return response_text.strip()
-        else:
-            return f"Error {r.status_code}: Bhai, API ne dhokha de diya. Naya rasta dhoondna padega."
+        # Step 1: Request the prediction
+        r = requests.post(url, json=payload, timeout=30)
+        if r.status_code != 200:
+            return f"Error {r.status_code}: Bhai, server busy hai."
             
+        event_id = r.json().get("event_id")
+        
+        # Step 2: Get the result (polling the event)
+        # 2026 Update: Public spaces now use 'eventdata' stream
+        result_url = f"https://m-a-p-deepseek-r1-distill-qwen-32b.hf.space/gradio_api/call/predict/{event_id}"
+        
+        while True:
+            res = requests.get(result_url, stream=True, timeout=30)
+            for line in res.iter_lines():
+                if line:
+                    line_text = line.decode('utf-8')
+                    if "data:" in line_text:
+                        data = json.loads(line_text.replace("data: ", ""))
+                        # Returns the actual model response
+                        if isinstance(data, list) and len(data) > 0:
+                            return data[0]
+            break
+
     except Exception as e:
         return f"Bhai, connection error: {str(e)}"
+
+# Alias to match your prompt
+def ask_ai(prompt):
+    return ask_gemini(prompt)
